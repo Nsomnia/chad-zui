@@ -12,6 +12,8 @@
 setopt LOCAL_OPTIONS NO_GLOB_SUBST NO_POSIX_BUILTINS PIPE_FAIL
 setopt EXTENDED_GLOB NULL_GLOB KSH_ARRAYS 2>/dev/null || true
 
+zmodload zsh/zcurses
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  SECTION: Global Configuration & Constants
 #  These are immutable. Like a senior dev's opinions on tabs vs spaces.
@@ -252,13 +254,13 @@ cursor_restore() { printf '\033[u'; }
 # @function cursor_hide
 # @description Hides cursor
 ##
-cursor_hide() { printf '\033[?25l'; }
+cursor_hide() { zcurses curs_set 0; }
 
 ##
 # @function cursor_show
 # @description Shows cursor
 ##
-cursor_show() { printf '\033[?25h'; }
+cursor_show() { zcurses curs_set 1; }
 
 ##
 # @function cursor_move
@@ -727,36 +729,44 @@ show_error() {
 # @return string - Key identifier (up/down/left/right/enter/space/esc/char)
 ##
 read_key() {
-    local key
-    local -i code
-    
-    IFS= read -rsk1 key 2>/dev/null || read -rsn1 key
-    code=$?
-    
-    if [[ "$key" == $'\x1b' ]]; then
-        read -rsk2 -t 0.01 key 2>/dev/null || read -rsn2 -t 0.01 key
-        case "$key" in
-            '[A'|'OA') echo "up" ;;
-            '[B'|'OB') echo "down" ;;
-            '[C'|'OC') echo "right" ;;
-            '[D'|'OD') echo "left" ;;
-            '[H')      echo "home" ;;
-            '[F')      echo "end" ;;
-            '[3~')     echo "delete" ;;
-            *)         echo "esc" ;;
-        esac
-    else
-        case "$key" in
-            '')        echo "enter" ;;
-            ' ')       echo "space" ;;
-            $'\x7f'|$'\x08') echo "backspace" ;;
-            $'\t')     echo "tab" ;;
-            'k'|'K')   echo "up" ;;
-            'j'|'J')   echo "down" ;;
-            'q'|'Q')   echo "quit" ;;
-            *)         echo "$key" ;;
-        esac
-    fi
+    local -i key_code
+    zcurses getch key_code
+
+    case "$key_code" in
+        # Arrow keys
+        $KEY_UP) echo "up" ;;
+        $KEY_DOWN) echo "down" ;;
+        $KEY_LEFT) echo "left" ;;
+        $KEY_RIGHT) echo "right" ;;
+
+        # Action keys
+        10) echo "enter" ;;
+        32) echo "space" ;;
+        27) echo "esc" ;;
+
+        # Editing keys
+        $KEY_BACKSPACE|127) echo "backspace" ;;
+        $KEY_DC) echo "delete" ;;
+        $KEY_HOME) echo "home" ;;
+        $KEY_END) echo "end" ;;
+
+        # Vim-style navigation
+        107|75) echo "up" ;;   # k/K
+        106|74) echo "down" ;; # j/J
+        104) echo "left" ;; # h
+        108) echo "right" ;; # l
+
+        # Other common keys
+        9) echo "tab" ;;
+        113|81) echo "quit" ;; # q/Q
+
+        # Default for printable characters
+        *)
+            if (( key_code >= 32 && key_code <= 126 )); then
+                printf \\$(printf '%03o' "$key_code")
+            fi
+            ;;
+    esac
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -813,8 +823,6 @@ mode_choose() {
     # Prepare terminal
     cursor_hide
     
-    # Cleanup on exit
-    trap 'cursor_show; return 1' INT TERM
     
     local max_width=0
     for item in "${items[@]}"; do
@@ -958,7 +966,6 @@ mode_input() {
     local error_msg=""
     
     cursor_hide
-    trap 'cursor_show; return 1' INT TERM
     
     while true; do
         printf '\r\033[J'
@@ -1108,7 +1115,6 @@ mode_confirm() {
     [[ "$default" == "n" ]] && selected=1
     
     cursor_hide
-    trap 'cursor_show; return 1' INT TERM
     
     while true; do
         printf '\r\033[J\n'
@@ -1397,6 +1403,29 @@ mode_notify() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  SECTION: TUI Initialization
+# ═══════════════════════════════════════════════════════════════════════════════
+
+##
+# @function init_tui
+# @description Initializes the zcurses TUI environment.
+##
+init_tui() {
+    zcurses init
+    zcurses keypad 1
+    zcurses noecho
+    zcurses curs_set 0
+}
+
+##
+# @function deinit_tui
+# @description Restores the terminal from zcurses mode.
+##
+deinit_tui() {
+    zcurses end
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  SECTION: Main Entry Point
 #  "It's not about the destination, it's about the exit code" - Senior Dev
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1417,6 +1446,9 @@ show_version() {
 # @description Main dispatcher - routes to appropriate mode
 ##
 main() {
+    init_tui
+    trap deinit_tui EXIT
+
     # No arguments - show help
     if [[ $# -eq 0 ]]; then
         show_main_help
