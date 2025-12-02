@@ -730,11 +730,12 @@ read_key() {
     local key
     local -i code
     
-    IFS= read -rsk1 key 2>/dev/null || read -rsn1 key
+    [[ -t 0 ]] && stty -echo
+    IFS= read -rsk1 key
     code=$?
     
     if [[ "$key" == $'\x1b' ]]; then
-        read -rsk2 -t 0.01 key 2>/dev/null || read -rsn2 -t 0.01 key
+        read -rsk2 -t 0.01 key
         case "$key" in
             '[A'|'OA') echo "up" ;;
             '[B'|'OB') echo "down" ;;
@@ -757,6 +758,7 @@ read_key() {
             *)         echo "$key" ;;
         esac
     fi
+    [[ -t 0 ]] && stty echo
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1417,6 +1419,7 @@ show_version() {
 # @description Main dispatcher - routes to appropriate mode
 ##
 main() {
+    trap 'stty echo; exit 1' INT TERM
     # No arguments - show help
     if [[ $# -eq 0 ]]; then
         show_main_help
@@ -1467,7 +1470,8 @@ main() {
             
             mode_spin --title "Compiling Gentoo from source..." --spinner dots -- sleep 2
             
-            local choice=$(mode_choose "vim" "emacs" "nano" "ed (for the truly enlightened)" \
+            local choice
+            choice=$(mode_choose "vim" "emacs" "nano" "ed (for the truly enlightened)" \
                 --header "Choose your editor (wrong answers only):")
             
             mode_dialog "You chose: $choice. Interesting choice. The DevOps team lead is judging you." \
