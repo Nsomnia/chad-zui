@@ -1,0 +1,14 @@
+#!/usr/bin/env zsh
+# ╔═══════════════════════════════════════════════════════════════════════════════╗
+# ║  CHAD-TUI v1.337 - The Superior Terminal User Interface Framework             ║
+# ║  "I use Arch btw" - Every DevOps Team Lead Ever                               ║
+# ║                                                                               ║
+# ║  Written in pure zsh because bash is for junior devs who still use Ubuntu    ║
+# ╚═══════════════════════════════════════════════════════════════════════════════╝
+#
+# SPDX-License-Identifier: MIT
+# Author: A Chad Developer Who Actually Reads Man Pages
+
+source "$(dirname "$0")/lib/core.zsh"
+
+main "$@"
