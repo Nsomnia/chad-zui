@@ -18,15 +18,20 @@ done
 #  SECTION: TUI Initialization
 # ═══════════════════════════════════════════════════════════════════════════════
 
+zmodload zsh/curses
+zmodload zsh/terminfo
+
 ##
 # @function init_tui
 # @description Initializes the zcurses TUI environment.
 ##
 init_tui() {
+    if [[ -t 0 ]]; then
+        echoti smcup # Enter alternate screen
+        echoti civis # Hide cursor
+        stty -echo # Disable echoing
+    fi
     zcurses init
-    zcurses keypad 1
-    zcurses noecho
-    zcurses curs_set 0
 }
 
 ##
@@ -35,6 +40,11 @@ init_tui() {
 ##
 deinit_tui() {
     zcurses end
+    if [[ -t 0 ]]; then
+        stty echo # Restore echoing
+        echoti cnorm # Restore cursor
+        echoti rmcup # Exit alternate screen
+    fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
