@@ -75,3 +75,4 @@ Toast-style notification.
 ```sh
 chad-tui notify "That's... acceptable. I guess." --type warning
 ```
+
